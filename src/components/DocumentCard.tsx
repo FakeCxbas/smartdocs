@@ -1,67 +1,116 @@
 import { motion } from "framer-motion";
-import { FileText, Download, Trash2 } from "lucide-react";
+import {
+  FileText,
+  FileImage,
+  FileSpreadsheet,
+  FileType,
+  Download,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatFileSize } from "@/lib/documents";
+import { formatFileSize, Document } from "@/lib/documents";
+import { useEffect, useRef, useState } from "react";
+import { DocumentPreview } from "./DocumentPreview";
+import { DocumentHoverPreview } from "./DocumentHoverPreview";
+import { supabase } from "@/integrations/supabase/client";
 
-interface Document {
-  id: string;
-  name: string;
-  file_size: number;
-  document_type: string;
+function getIcon(type: Document["document_type"]) {
+  switch (type) {
+    case "pdf":
+      return <FileType className="w-8 h-8 text-red-500" />;
+    case "image":
+      return <FileImage className="w-8 h-8 text-purple-500" />;
+    case "excel":
+      return <FileSpreadsheet className="w-8 h-8 text-green-500" />;
+    case "word":
+      return <FileText className="w-8 h-8 text-blue-500" />;
+    default:
+      return <FileText className="w-8 h-8 text-muted-foreground" />;
+  }
 }
 
-interface Props {
+export function DocumentCard({
+  document,
+  onDownload,
+  onDelete,
+}: {
   document: Document;
   onDownload: (document: Document) => void;
   onDelete: (document: Document) => void;
-}
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showHover, setShowHover] = useState(false);
+  const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
 
-export function DocumentCard({ document, onDownload, onDelete }: Props) {
+  const loadPreview = async () => {
+    if (previewUrl) return;
+    const { data } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(document.file_path, 120);
+    if (data?.signedUrl) setPreviewUrl(data.signedUrl);
+  };
+
+  const onHoverStart = () => {
+    hoverTimeout.current = setTimeout(() => {
+      loadPreview();
+      setShowHover(true);
+    }, 300);
+  };
+
+  const onHoverEnd = () => {
+    if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+    setShowHover(false);
+  };
+
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      className="p-4 bg-card border border-border rounded-xl flex items-center justify-between gap-4"
-    >
-      {/* INFO DEL DOCUMENTO */}
-      <div className="flex items-center gap-3">
-        <FileText className="w-8 h-8 text-primary" />
-
-        <div>
-          <p className="font-medium text-foreground">
-            {document.name}
-          </p>
-
-          <p className="text-sm text-muted-foreground">
-            {formatFileSize(document.file_size)}
-          </p>
-
-          <p className="text-xs text-muted-foreground capitalize">
-            {(document.document_type ?? "otro").replace("_", " ")}
-          </p>
+    <>
+      <motion.div
+        layout
+        whileHover={{ scale: 1.02 }}
+        onHoverStart={onHoverStart}
+        onHoverEnd={onHoverEnd}
+        onClick={loadPreview}
+        className="relative p-4 bg-card border border-border rounded-xl flex items-center justify-between gap-4 cursor-pointer hover:shadow-md transition-shadow"
+      >
+        <div className="flex items-center gap-3">
+          {getIcon(document.document_type)}
+          <div>
+            <p className="font-medium truncate max-w-[180px]">
+              {document.name}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {formatFileSize(document.file_size)}
+            </p>
+            <p className="text-xs text-muted-foreground capitalize">
+              {document.document_type}
+            </p>
+          </div>
         </div>
-      </div>
 
-      {/* ACCIONES */}
-      <div className="flex gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => onDownload(document)}
+        <div
+          className="flex gap-2"
+          onClick={(e) => e.stopPropagation()}
         >
-          <Download className="w-4 h-4" />
-        </Button>
+          <Button variant="ghost" size="icon" onClick={() => onDownload(document)}>
+            <Download className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => onDelete(document)}>
+            <Trash2 className="w-4 h-4 text-destructive" />
+          </Button>
+        </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(document)}
-        >
-          <Trash2 className="w-4 h-4 text-destructive" />
-        </Button>
-      </div>
-    </motion.div>
+        <DocumentHoverPreview
+          document={document}
+          previewUrl={previewUrl}
+          visible={showHover}
+        />
+      </motion.div>
+
+      <DocumentPreview
+        document={previewUrl ? document : null}
+        previewUrl={previewUrl}
+        onClose={() => setPreviewUrl(null)}
+      />
+    </>
   );
 }
