@@ -1,0 +1,116 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ======================================================
+   SmartDocs – Email Verification / Clean UI Theme
+   Minimal, clear, confirmation-focused
+====================================================== */
+
+@layer base {
+  :root {
+    --background: 240 10% 97%;
+    --foreground: 240 10% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 12%;
+
+    --primary: 258 89% 66%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 5% 90%;
+    --secondary-foreground: 240 10% 20%;
+
+    --muted: 240 5% 90%;
+    --muted-foreground: 240 5% 40%;
+
+    --accent: 258 89% 95%;
+    --accent-foreground: 258 89% 40%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 5% 85%;
+    --input: 240 5% 85%;
+    --ring: 258 89% 66%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 240 10% 10%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 14%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 14%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 258 89% 70%;
+    --primary-foreground: 240 10% 10%;
+
+    --secondary: 240 5% 25%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 5% 25%;
+    --muted-foreground: 240 5% 70%;
+
+    --accent: 258 89% 25%;
+    --accent-foreground: 258 89% 85%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 5% 25%;
+    --input: 240 5% 25%;
+    --ring: 258 89% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, sans-serif;
+  }
+}
+
+/* ======================================================
+   Utilities
+====================================================== */
+
+@layer utilities {
+  .glass {
+    @apply bg-white/80 backdrop-blur-xl border border-border shadow-lg;
+  }
+
+  .centered-page {
+    @apply min-h-screen flex items-center justify-center px-4;
+  }
+
+  .verify-card {
+    @apply glass max-w-md w-full rounded-xl p-8 text-center;
+  }
+
+  .verify-icon {
+    @apply mx-auto mb-4 text-primary;
+  }
+
+  .verify-title {
+    @apply text-2xl font-semibold mb-2;
+  }
+
+  .verify-text {
+    @apply text-sm text-muted-foreground;
+  }
+}
