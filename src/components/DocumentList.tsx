@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { FileX } from "lucide-react";
+import { FileX, Search } from "lucide-react";
 import { DocumentCard } from "./DocumentCard";
 import { Document, DocumentType } from "@/lib/documents";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,8 @@ const FILTERS: { label: string; value: DocumentType | "all" }[] = [
   { label: "Otros", value: "other" },
 ];
 
+type SortOption = "recent" | "oldest" | "name" | "size";
+
 export function DocumentList({
   documents,
   onDownload,
@@ -28,11 +30,53 @@ export function DocumentList({
   isLoading,
 }: DocumentListProps) {
   const [filter, setFilter] = useState<DocumentType | "all">("all");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortOption>("recent");
 
-  const filteredDocuments =
-    filter === "all"
-      ? documents
-      : documents.filter((doc) => doc.document_type === filter);
+  const processedDocuments = useMemo(() => {
+    let result = [...documents];
+
+    // 🔍 BUSCAR
+    if (search.trim()) {
+      result = result.filter((doc) =>
+        doc.name.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+
+    // 🧩 FILTRAR POR TIPO
+    if (filter !== "all") {
+      result = result.filter((doc) => doc.document_type === filter);
+    }
+
+    // 🔀 ORDENAR
+    switch (sort) {
+      case "oldest":
+        result.sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() -
+            new Date(b.created_at).getTime()
+        );
+        break;
+
+      case "name":
+        result.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+
+      case "size":
+        result.sort((a, b) => b.file_size - a.file_size);
+        break;
+
+      default: // recent
+        result.sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() -
+            new Date(a.created_at).getTime()
+        );
+}
+
+
+    return result;
+  }, [documents, filter, search, sort]);
 
   /* ================================
      LOADING
@@ -51,7 +95,7 @@ export function DocumentList({
   }
 
   /* ================================
-     EMPTY STATE
+     EMPTY GLOBAL
   ================================ */
   if (documents.length === 0) {
     return (
@@ -67,8 +111,7 @@ export function DocumentList({
           No hay documentos
         </h3>
         <p className="text-sm text-muted-foreground max-w-sm">
-          Sube tu primer documento arrastrándolo aquí o haciendo clic en el área
-          de subida
+          Sube tu primer documento para empezar
         </p>
       </motion.div>
     );
@@ -77,7 +120,36 @@ export function DocumentList({
   return (
     <div className="space-y-4">
       {/* ================================
-          FILTROS
+          BÚSQUEDA + ORDEN
+      ================================ */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        {/* 🔍 BUSCADOR */}
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Buscar documentos..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+
+        {/* 🔀 ORDENAR */}
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SortOption)}
+          className="px-3 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+        >
+          <option value="recent">Más recientes</option>
+          <option value="oldest">Más antiguos</option>
+          <option value="name">Nombre A–Z</option>
+          <option value="size">Tamaño</option>
+        </select>
+      </div>
+
+      {/* ================================
+          FILTROS POR TIPO
       ================================ */}
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
@@ -86,10 +158,9 @@ export function DocumentList({
             onClick={() => setFilter(f.value)}
             className={cn(
               "px-3 py-1.5 text-sm rounded-full border transition-all",
-              "hover:bg-muted/60",
               filter === f.value
                 ? "bg-primary/10 border-primary text-primary"
-                : "bg-transparent border-border text-muted-foreground"
+                : "bg-transparent border-border text-muted-foreground hover:bg-muted/60"
             )}
           >
             {f.label}
@@ -102,7 +173,7 @@ export function DocumentList({
       ================================ */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <AnimatePresence mode="popLayout">
-          {filteredDocuments.map((doc) => (
+          {processedDocuments.map((doc) => (
             <DocumentCard
               key={doc.id}
               document={doc}
@@ -114,15 +185,15 @@ export function DocumentList({
       </div>
 
       {/* ================================
-          EMPTY FILTER
+          EMPTY RESULT
       ================================ */}
-      {filteredDocuments.length === 0 && (
+      {processedDocuments.length === 0 && (
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="text-sm text-muted-foreground text-center py-8"
         >
-          No hay documentos de este tipo
+          No se encontraron documentos
         </motion.p>
       )}
     </div>
