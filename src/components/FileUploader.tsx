@@ -1,3 +1,7 @@
+import {
+  DOCUMENT_CATEGORIES,
+  DocumentCategory,
+} from "./constants/documentCategories";
 import { useCallback, useState } from 'react';
 import { Upload, X, FileIcon, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,6 +16,8 @@ interface FileUploaderProps {
 export function FileUploader({ onUpload, isUploading }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [category, setCategory] = useState<DocumentCategory>("administrativos");
+
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -43,12 +49,42 @@ export function FileUploader({ onUpload, isUploading }: FileUploaderProps) {
 
   const handleUpload = async () => {
     if (selectedFiles.length === 0) return;
-    await onUpload(selectedFiles);
+    await onUpload(
+      selectedFiles.map((file) => {
+        (file as any).category = category;
+        return file;
+      })
+  );
+
     setSelectedFiles([]);
   };
 
   return (
     <div className="space-y-4">
+      
+      {/*SELECTOR DE CATEGORIA*/}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-foreground">
+          Categoría del documento
+        </label>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as DocumentCategory)
+          }
+          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          {DOCUMENT_CATEGORIES.map((cat) => (
+            <option key={cat} value={cat}>
+              {cat
+                .replace("_", " ")
+                .replace(/\b\w/g, l => l.toUpperCase())}
+            </option>
+          ))}
+        </select>
+      </div>
+
+
+
       <motion.div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}

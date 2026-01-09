@@ -73,7 +73,9 @@ export function DocumentCard({
 
   const isOwner = currentUserId === document.user_id;
   const isShared = currentUserId !== null && document.user_id !== currentUserId;
-  const canEdit = document.permission_role !== "viewer";
+  const canEdit =
+    document.user_id === currentUserId ||
+    document.permission_role === "editor";
   const canDownload = document.permission_role !== "viewer";
   const lastEdit = document.updated_at ?? document.created_at;
 
@@ -150,11 +152,12 @@ export function DocumentCard({
 
         {/* ACCIONES */}
         <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-          {isOwner && canEdit && (
+          {canEdit && (
             <Button variant="ghost" size="icon" onClick={() => setEditOpen(true)}>
-              <Pencil className="w-4 h-4" />
-            </Button>
-          )}
+            <Pencil className="w-4 h-4" />
+          </Button>
+        )}
+
 
           {canDownload && (
             <Button

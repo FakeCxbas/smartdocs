@@ -6,6 +6,7 @@ import { DocumentCard } from "./DocumentCard";
 import { Document, DocumentType, DocumentWithRole } from "@/lib/documents";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { DocumentCategory } from "./constants/documentCategories";
 
 interface DocumentListProps {
   documents: DocumentWithRole[];
@@ -15,15 +16,22 @@ interface DocumentListProps {
   onUpdated?: () => void;
 }
 
-const FILTERS: { label: string; value: DocumentType | "all" }[] = [
+const CATEGORY_FILTERS: {
+  label: string;
+  value: DocumentCategory | "all";
+}[] = [
   { label: "Todos", value: "all" },
-  { label: "PDF", value: "pdf" },
-  { label: "Word", value: "word" },
-  { label: "Excel", value: "excel" },
-  { label: "Imágenes", value: "image" },
-  { label: "Texto", value: "text" },
-  { label: "Otros", value: "other" },
+  { label: "Administrativos", value: "administrativos" },
+  { label: "Financieros", value: "financieros" },
+  { label: "Fiscales", value: "fiscales" },
+  { label: "RRHH", value: "recursos_humanos" },
+  { label: "Ventas", value: "ventas" },
+  { label: "Compras", value: "compras" },
+  { label: "Operativos", value: "operativos" },
+  { label: "Marketing", value: "marketing" },
+  { label: "Tecnología", value: "tecnologia" },
 ];
+
 
 type SortOption = "edited" | "recent" | "oldest" | "name" | "size";
 
@@ -35,7 +43,7 @@ export function DocumentList({
   onUpdated,
 }: DocumentListProps) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<DocumentType | "all">("all");
+  const [filter, setFilter] = useState<DocumentCategory | "all">("all");
   const [sort, setSort] = useState<SortOption>("edited");
 
   const [searching, setSearching] = useState(false);
@@ -46,8 +54,11 @@ export function DocumentList({
     let result = [...documents];
 
     if (filter !== "all") {
-      result = result.filter((d) => d.document_type === filter);
-    }
+      result = result.filter(
+        (d) => (d.category ?? "administrativos") === filter
+    );
+  }
+
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -159,7 +170,8 @@ export function DocumentList({
 
       {/* FILTROS */}
       <div className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
+        {CATEGORY_FILTERS.map((f) => (
+
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}

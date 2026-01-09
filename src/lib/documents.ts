@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 // src/lib/documents.ts
 
 import { supabase } from "@/integrations/supabase/client";
@@ -35,7 +36,6 @@ export interface Document {
   status: string | null;
   tags: string[] | null;
   content?: string;
-
 }
 
 export type PermissionRole = "editor" | "viewer";
@@ -82,7 +82,6 @@ export function detectDocumentType(file: File): DocumentType {
 ================================ */
 
 export async function getDocuments(userId: string): Promise<DocumentWithRole[]> {
-
 
   /* =====================================================
      1️⃣ DOCUMENTOS PROPIOS
@@ -145,27 +144,21 @@ export async function getDocuments(userId: string): Promise<DocumentWithRole[]> 
 
     sharedDocs = data ?? [];
 
-
-
     // 🧠 Cargar contenido SOLO para TXT (búsqueda interna)
+    // ⚠️ CORRECCIÓN: usar Signed URL porque el usuario NO es owner
     for (const doc of sharedDocs) {
       if (doc.document_type === "text") {
-        const { data } = await supabase.storage
+        const { data, error } = await supabase.storage
           .from("documents")
-          .download(doc.file_path);
+          .createSignedUrl(doc.file_path, 60);
 
-        if (data) {
-          doc.content = await data.text();
+        if (!error && data?.signedUrl) {
+          const res = await fetch(data.signedUrl);
+          doc.content = await res.text();
+        }
+      }
     }
   }
-}
-
-
-    
-  }
-
-  
-
 
   const sharedDocsWithRole: DocumentWithRole[] = sharedDocs.map(doc => {
     const perm = typedSharedPerms.find(p => p.document_id === doc.id);
@@ -200,7 +193,6 @@ export async function getDocuments(userId: string): Promise<DocumentWithRole[]> 
 
   return allDocs;
 }
-
 
 /* ================================
    SUBIR DOCUMENTO
@@ -265,16 +257,11 @@ export async function downloadDocument(doc: Document) {
 
   if (error || !data) throw error;
 
-  const res = await fetch(data.signedUrl);
-  const blob = await res.blob();
+  const downloadUrl = `${data.signedUrl}&download=${encodeURIComponent(doc.name)}`;
+  window.location.href = downloadUrl;
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = doc.name;
-  a.click();
-  URL.revokeObjectURL(url);
 }
+
 
 /* ================================
    ACTUALIZAR METADATOS
