@@ -268,6 +268,7 @@ export default function Dashboard() {
             onDownload={handleDownload}
             onDelete={handleDelete}
             isLoading={isLoading}
+            onUpdated={loadDocuments}
           />
         </div>
       </main>

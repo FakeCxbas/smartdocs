@@ -1,3 +1,6 @@
+import { Share2 } from "lucide-react";
+import { ShareDocumentDialog } from "./ShareDocumentDialog";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   FileText,
@@ -6,15 +9,20 @@ import {
   FileType,
   Download,
   Trash2,
+  Pencil,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { formatFileSize, Document } from "@/lib/documents";
-import { useEffect, useRef, useState } from "react";
-import { DocumentPreview } from "./DocumentPreview";
-import { DocumentHoverPreview } from "./DocumentHoverPreview";
-import { supabase } from "@/integrations/supabase/client";
 
-function getIcon(type: Document["document_type"]) {
+import { Button } from "@/components/ui/button";
+import type { DocumentWithRole } from "@/lib/documents"; // 🔧 FIX
+import { formatFileSize } from "@/lib/documents";
+import { supabase } from "@/integrations/supabase/client";
+import { DocumentPreview } from "./DocumentPreview";
+import { EditDocumentDialog } from "./EditDocumentDialog";
+
+/* ================================
+   ICONO POR TIPO
+================================ */
+function getIcon(type: DocumentWithRole["document_type"]) {
   switch (type) {
     case "pdf":
       return <FileType className="w-8 h-8 text-red-500" />;
@@ -23,94 +31,194 @@ function getIcon(type: Document["document_type"]) {
     case "excel":
       return <FileSpreadsheet className="w-8 h-8 text-green-500" />;
     case "word":
+    case "text":
       return <FileText className="w-8 h-8 text-blue-500" />;
     default:
       return <FileText className="w-8 h-8 text-muted-foreground" />;
   }
 }
 
+function formatDate(date?: string) {
+  if (!date) return "—";
+  return new Date(date).toLocaleDateString();
+}
+
+interface Props {
+  document: DocumentWithRole; // 🔧 FIX
+  onDownload: (document: DocumentWithRole) => void; // 🔧 FIX
+  onDelete: (document: DocumentWithRole) => void; // 🔧 FIX
+  onUpdated?: () => void;
+}
+
 export function DocumentCard({
   document,
   onDownload,
   onDelete,
-}: {
-  document: Document;
-  onDownload: (document: Document) => void;
-  onDelete: (document: Document) => void;
-}) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [showHover, setShowHover] = useState(false);
-  const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
+  onUpdated,
+}: Props) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  const loadPreview = async () => {
-    if (previewUrl) return;
-    const { data } = await supabase.storage
+  /* ================================
+     USUARIO ACTUAL
+  ================================ */
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
+
+  const isOwner = currentUserId === document.user_id;
+  const isShared = currentUserId !== null && document.user_id !== currentUserId;
+  const canEdit = document.permission_role !== "viewer";
+  const canDownload = document.permission_role !== "viewer";
+  const lastEdit = document.updated_at ?? document.created_at;
+
+  /* ================================
+     PREVIEW
+  ================================ */
+  const openPreview = async () => {
+    const { data, error } = await supabase.storage
       .from("documents")
-      .createSignedUrl(document.file_path, 120);
-    if (data?.signedUrl) setPreviewUrl(data.signedUrl);
+      .createSignedUrl(document.file_path, 60);
+
+    if (error || !data?.signedUrl) {
+      console.error("Error creando previewUrl", error);
+      return;
+    }
+
+    setPreviewUrl(data.signedUrl);
+    setPreviewOpen(true);
   };
 
-  const onHoverStart = () => {
-    hoverTimeout.current = setTimeout(() => {
-      loadPreview();
-      setShowHover(true);
-    }, 300);
+  const closePreview = () => {
+    setPreviewOpen(false);
+    setPreviewUrl("");
   };
 
-  const onHoverEnd = () => {
-    if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
-    setShowHover(false);
-  };
-
+  /* ================================
+     RENDER
+  ================================ */
   return (
     <>
       <motion.div
         layout
-        whileHover={{ scale: 1.02 }}
-        onHoverStart={onHoverStart}
-        onHoverEnd={onHoverEnd}
-        onClick={loadPreview}
-        className="relative p-4 bg-card border border-border rounded-xl flex items-center justify-between gap-4 cursor-pointer hover:shadow-md transition-shadow"
+        layoutId={document.id}
+        whileHover={{ scale: 1.01 }}
+        onClick={openPreview}
+        className="relative p-4 bg-card border border-border rounded-xl flex items-start justify-between gap-4 cursor-pointer hover:shadow-md transition-shadow"
       >
-        <div className="flex items-center gap-3">
+        {/* INFO */}
+        <div className="flex gap-3">
           {getIcon(document.document_type)}
-          <div>
-            <p className="font-medium truncate max-w-[180px]">
-              {document.name}
-            </p>
+
+          <div className="space-y-0.5 max-w-[200px]">
+            <div className="flex items-center gap-2">
+              <p className="font-medium truncate">{document.name}</p>
+
+              {isShared && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                  Compartido
+                </span>
+              )}
+            </div>
+
             <p className="text-sm text-muted-foreground">
               {formatFileSize(document.file_size)}
             </p>
+
             <p className="text-xs text-muted-foreground capitalize">
-              {document.document_type}
+              Tipo: {document.document_type}
+            </p>
+
+            <p className="text-xs text-muted-foreground">
+              Autor: {isOwner ? "Tú" : document.user_id}
+            </p>
+
+            <p className="text-xs text-muted-foreground">
+              Creado: {formatDate(document.created_at)}
+            </p>
+
+            <p className="text-xs text-muted-foreground">
+              Última edición: {formatDate(lastEdit)}
             </p>
           </div>
         </div>
 
-        <div
-          className="flex gap-2"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Button variant="ghost" size="icon" onClick={() => onDownload(document)}>
-            <Download className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => onDelete(document)}>
-            <Trash2 className="w-4 h-4 text-destructive" />
-          </Button>
-        </div>
+        {/* ACCIONES */}
+        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+          {isOwner && canEdit && (
+            <Button variant="ghost" size="icon" onClick={() => setEditOpen(true)}>
+              <Pencil className="w-4 h-4" />
+            </Button>
+          )}
 
-        <DocumentHoverPreview
-          document={document}
-          previewUrl={previewUrl}
-          visible={showHover}
-        />
+          {canDownload && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onDownload(document)}
+            >
+              <Download className="w-4 h-4" />
+            </Button>
+          )}
+
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShareOpen(true)}
+            >
+              <Share2 className="w-4 h-4" />
+            </Button>
+          )}
+
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onDelete(document)}
+            >
+              <Trash2 className="w-4 h-4 text-destructive" />
+            </Button>
+          )}
+        </div>
       </motion.div>
 
-      <DocumentPreview
-        document={previewUrl ? document : null}
-        previewUrl={previewUrl}
-        onClose={() => setPreviewUrl(null)}
-      />
+      {/* PREVIEW */}
+      {previewOpen && previewUrl && (
+        <DocumentPreview
+          document={document}
+          previewUrl={previewUrl}
+          onClose={closePreview}
+        />
+      )}
+
+      {/* SHARE */}
+      {shareOpen && (
+        <ShareDocumentDialog
+          documentId={document.id}
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
+
+      {/* EDITAR */}
+      {editOpen && (
+        <EditDocumentDialog
+          document={document}
+          permissionRole={document.permission_role} // 🔧 FIX
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false);
+            onUpdated?.();
+          }}
+        />
+      )}
     </>
   );
 }

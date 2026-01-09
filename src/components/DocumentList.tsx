@@ -1,15 +1,18 @@
+import { supabase } from "@/integrations/supabase/client";
 import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { FileX, Search } from "lucide-react";
 import { DocumentCard } from "./DocumentCard";
-import { Document, DocumentType } from "@/lib/documents";
+import { Document, DocumentType, DocumentWithRole } from "@/lib/documents";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 interface DocumentListProps {
-  documents: Document[];
+  documents: DocumentWithRole[];
   onDownload: (doc: Document) => Promise<void>;
   onDelete: (doc: Document) => Promise<void>;
   isLoading: boolean;
+  onUpdated?: () => void;
 }
 
 const FILTERS: { label: string; value: DocumentType | "all" }[] = [
@@ -18,69 +21,86 @@ const FILTERS: { label: string; value: DocumentType | "all" }[] = [
   { label: "Word", value: "word" },
   { label: "Excel", value: "excel" },
   { label: "Imágenes", value: "image" },
+  { label: "Texto", value: "text" },
   { label: "Otros", value: "other" },
 ];
 
-type SortOption = "recent" | "oldest" | "name" | "size";
+type SortOption = "edited" | "recent" | "oldest" | "name" | "size";
 
 export function DocumentList({
   documents,
   onDownload,
   onDelete,
   isLoading,
+  onUpdated,
 }: DocumentListProps) {
-  const [filter, setFilter] = useState<DocumentType | "all">("all");
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<SortOption>("recent");
+  const [filter, setFilter] = useState<DocumentType | "all">("all");
+  const [sort, setSort] = useState<SortOption>("edited");
+
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] =
+    useState<DocumentWithRole[] | null>(null);
 
   const processedDocuments = useMemo(() => {
     let result = [...documents];
 
-    // 🔍 BUSCAR
+    if (filter !== "all") {
+      result = result.filter((d) => d.document_type === filter);
+    }
+
     if (search.trim()) {
-      result = result.filter((doc) =>
-        doc.name.toLowerCase().includes(search.toLowerCase())
+      const q = search.toLowerCase();
+      result = result.filter((d) =>
+        d.name.toLowerCase().includes(q)
       );
     }
 
-    // 🧩 FILTRAR POR TIPO
-    if (filter !== "all") {
-      result = result.filter((doc) => doc.document_type === filter);
-    }
+    result.sort((a, b) => {
+      const da = new Date(a.updated_at ?? a.created_at).getTime();
+      const db = new Date(b.updated_at ?? b.created_at).getTime();
 
-    // 🔀 ORDENAR
-    switch (sort) {
-      case "oldest":
-        result.sort(
-          (a, b) =>
-            new Date(a.created_at).getTime() -
-            new Date(b.created_at).getTime()
-        );
-        break;
+      if (sort === "recent") return db - da;
+      if (sort === "oldest") return da - db;
+      if (sort === "name") return a.name.localeCompare(b.name);
+      if (sort === "size") return b.file_size - a.file_size;
 
-      case "name":
-        result.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-
-      case "size":
-        result.sort((a, b) => b.file_size - a.file_size);
-        break;
-
-      default: // recent
-        result.sort(
-          (a, b) =>
-            new Date(b.created_at).getTime() -
-            new Date(a.created_at).getTime()
-        );
-}
-
+      return db - da; // edited
+    });
 
     return result;
   }, [documents, filter, search, sort]);
 
-  /* ================================
-     LOADING
-  ================================ */
+  const handleDeepSearch = async () => {
+    if (!search.trim()) return;
+
+    setSearching(true);
+    const q = search.toLowerCase();
+    const results: DocumentWithRole[] = [];
+
+    for (const doc of processedDocuments) {
+      if (doc.document_type !== "text") continue;
+
+      try {
+        const { data } = await supabase.storage
+          .from("documents")
+          .createSignedUrl(doc.file_path, 60);
+
+        if (!data?.signedUrl) continue;
+
+        const res = await fetch(data.signedUrl);
+        const text = await res.text();
+
+        if (text.toLowerCase().includes(q)) {
+          results.push(doc);
+        }
+      } catch {}
+    }
+
+    setSearchResults(results);
+    setSearching(false);
+  };
+
   if (isLoading) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -94,53 +114,42 @@ export function DocumentList({
     );
   }
 
-  /* ================================
-     EMPTY GLOBAL
-  ================================ */
   if (documents.length === 0) {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="flex flex-col items-center justify-center py-16 text-center"
-      >
-        <div className="p-4 rounded-full bg-muted/50 mb-4">
-          <FileX className="w-10 h-10 text-muted-foreground" />
-        </div>
-        <h3 className="text-lg font-medium text-foreground mb-1">
-          No hay documentos
-        </h3>
-        <p className="text-sm text-muted-foreground max-w-sm">
-          Sube tu primer documento para empezar
-        </p>
-      </motion.div>
+      <div className="flex flex-col items-center py-16 text-center">
+        <FileX className="w-10 h-10 text-muted-foreground mb-4" />
+        <p>No hay documentos</p>
+      </div>
     );
   }
 
+  const listToRender = searchResults ?? processedDocuments;
+
   return (
     <div className="space-y-4">
-      {/* ================================
-          BÚSQUEDA + ORDEN
-      ================================ */}
+      {/* BUSCADOR + ORDEN */}
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-        {/* 🔍 BUSCADOR */}
         <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
           <input
-            type="text"
-            placeholder="Buscar documentos..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            onChange={(e) => {
+              setSearch(e.currentTarget.value);
+              setSearchResults(null);
+            }}
+            placeholder="Buscar documentos..."
+            className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm"
           />
         </div>
 
-        {/* 🔀 ORDENAR */}
         <select
           value={sort}
-          onChange={(e) => setSort(e.target.value as SortOption)}
-          className="px-3 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          onChange={(e) =>
+            setSort(e.currentTarget.value as SortOption)
+          }
+          className="px-3 py-2 rounded-lg border text-sm"
         >
+          <option value="edited">Última edición</option>
           <option value="recent">Más recientes</option>
           <option value="oldest">Más antiguos</option>
           <option value="name">Nombre A–Z</option>
@@ -148,19 +157,17 @@ export function DocumentList({
         </select>
       </div>
 
-      {/* ================================
-          FILTROS POR TIPO
-      ================================ */}
+      {/* FILTROS */}
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}
             className={cn(
-              "px-3 py-1.5 text-sm rounded-full border transition-all",
+              "px-3 py-1.5 text-sm rounded-full border",
               filter === f.value
                 ? "bg-primary/10 border-primary text-primary"
-                : "bg-transparent border-border text-muted-foreground hover:bg-muted/60"
+                : "border-border text-muted-foreground"
             )}
           >
             {f.label}
@@ -168,33 +175,38 @@ export function DocumentList({
         ))}
       </div>
 
-      {/* ================================
-          LISTA
-      ================================ */}
+      {/* BUSCAR DENTRO */}
+      <div className="flex gap-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          placeholder="Buscar dentro de documentos TXT..."
+          className="flex-1 px-3 py-2 border rounded-md"
+        />
+        <Button onClick={handleDeepSearch} disabled={searching}>
+          {searching ? "Buscando..." : "Buscar"}
+        </Button>
+      </div>
+
+      {/* LISTA */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <AnimatePresence mode="popLayout">
-          {processedDocuments.map((doc) => (
+          {listToRender.map((doc) => (
             <DocumentCard
               key={doc.id}
               document={doc}
               onDownload={onDownload}
               onDelete={onDelete}
+              onUpdated={onUpdated}
             />
           ))}
         </AnimatePresence>
       </div>
 
-      {/* ================================
-          EMPTY RESULT
-      ================================ */}
-      {processedDocuments.length === 0 && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-sm text-muted-foreground text-center py-8"
-        >
+      {listToRender.length === 0 && (
+        <p className="text-sm text-muted-foreground text-center py-8">
           No se encontraron documentos
-        </motion.p>
+        </p>
       )}
     </div>
   );
