@@ -66,7 +66,7 @@ export default function Dashboard() {
   /* =========================
      SUBIR ARCHIVOS
   ========================= */
-  const handleUpload = async (files: File[]) => {
+  const handleUpload = async (files: File[], categoryId: string | null) => {
     if (!user) return;
 
     setIsUploading(true);
@@ -74,7 +74,7 @@ export default function Dashboard() {
 
     for (const file of files) {
       try {
-        await uploadDocument(file, user.id);
+        await uploadDocument(file, user.id, categoryId);
         success++;
       } catch (error) {
         toast({

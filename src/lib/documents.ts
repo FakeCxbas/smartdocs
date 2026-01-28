@@ -198,7 +198,11 @@ export async function getDocuments(userId: string): Promise<DocumentWithRole[]> 
    SUBIR DOCUMENTO
 ================================ */
 
-export async function uploadDocument(file: File, userId: string) {
+export async function uploadDocument(
+  file: File,
+  userId: string,
+  categoryId: string | null
+) {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
   const fileId = uuidv4();
   const filePath = `${userId}/${fileId}.${ext}`;
@@ -225,7 +229,7 @@ export async function uploadDocument(file: File, userId: string) {
     updated_at: new Date().toISOString(),
     updated_by: userId,
     description: null,
-    category: null,
+    category_id: categoryId,
     logical_type: null,
     status: "pendiente",
     tags: null,

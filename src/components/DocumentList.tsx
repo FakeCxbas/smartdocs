@@ -3,10 +3,10 @@ import { useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { FileX, Search } from "lucide-react";
 import { DocumentCard } from "./DocumentCard";
-import { Document, DocumentType, DocumentWithRole } from "@/lib/documents";
-import { cn } from "@/lib/utils";
+import { Document, DocumentWithRole } from "@/lib/documents";
 import { Button } from "@/components/ui/button";
-import { DocumentCategory } from "./constants/documentCategories";
+import { useCategories } from "@/hooks/useCategories";
+
 
 interface DocumentListProps {
   documents: DocumentWithRole[];
@@ -15,22 +15,6 @@ interface DocumentListProps {
   isLoading: boolean;
   onUpdated?: () => void;
 }
-
-const CATEGORY_FILTERS: {
-  label: string;
-  value: DocumentCategory | "all";
-}[] = [
-  { label: "Todos", value: "all" },
-  { label: "Administrativos", value: "administrativos" },
-  { label: "Financieros", value: "financieros" },
-  { label: "Fiscales", value: "fiscales" },
-  { label: "RRHH", value: "recursos_humanos" },
-  { label: "Ventas", value: "ventas" },
-  { label: "Compras", value: "compras" },
-  { label: "Operativos", value: "operativos" },
-  { label: "Marketing", value: "marketing" },
-  { label: "Tecnología", value: "tecnologia" },
-];
 
 
 type SortOption = "edited" | "recent" | "oldest" | "name" | "size";
@@ -42,22 +26,34 @@ export function DocumentList({
   isLoading,
   onUpdated,
 }: DocumentListProps) {
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<DocumentCategory | "all">("all");
-  const [sort, setSort] = useState<SortOption>("edited");
 
+  // ===============================
+  // 🔒 TODOS LOS HOOKS VAN AQUÍ
+  // ===============================
+
+  const categories = useCategories();
+
+  const [filterCategoryId, setFilterCategoryId] =
+    useState<string | "all">("all");
+
+  const [search, setSearch] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] =
     useState<DocumentWithRole[] | null>(null);
 
+  const [sort, setSort] = useState<SortOption>("edited");
+
   const processedDocuments = useMemo(() => {
     let result = [...documents];
 
-    if (filter !== "all") {
+    if (filterCategoryId !== "all") {
       result = result.filter(
-        (d) => (d.category ?? "administrativos") === filter
-    );
-  }
+        (d: any) => d.category_id === filterCategoryId
+      );
+    }
+
+
+ 
 
 
     if (search.trim()) {
@@ -80,7 +76,7 @@ export function DocumentList({
     });
 
     return result;
-  }, [documents, filter, search, sort]);
+  }, [documents, filterCategoryId, search, sort]);
 
   const handleDeepSearch = async () => {
     if (!search.trim()) return;
@@ -168,24 +164,33 @@ export function DocumentList({
         </select>
       </div>
 
-      {/* FILTROS */}
-      <div className="flex flex-wrap gap-2">
-        {CATEGORY_FILTERS.map((f) => (
+        {/* FILTRO POR CATEGORÍA */}
 
-          <button
-            key={f.value}
-            onClick={() => setFilter(f.value)}
-            className={cn(
-              "px-3 py-1.5 text-sm rounded-full border",
-              filter === f.value
-                ? "bg-primary/10 border-primary text-primary"
-                : "border-border text-muted-foreground"
-            )}
+     
+        <div className="flex flex-wrap gap-2 mb-3">
+          <Button
+            variant={filterCategoryId === "all" ? "default" : "outline"}
+            onClick={() => setFilterCategoryId("all")}
           >
-            {f.label}
-          </button>
-        ))}
-      </div>
+            Todos
+          </Button>
+
+          {categories.map((cat) => (
+            <Button
+              key={cat.id}
+              variant={filterCategoryId === cat.id ? "default" : "outline"}
+              onClick={() => setFilterCategoryId(cat.id)}
+            >
+              {cat.name}
+            </Button>
+          ))}
+        </div>
+      
+
+
+
+
+
 
       {/* BUSCAR DENTRO */}
       <div className="flex gap-2">
